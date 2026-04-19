@@ -1,0 +1,13 @@
+(
+    width:            50,
+    height:           50,
+    random_obstacles: 80,
+    random_gold:      20,
+    fixed: [
+        ( x: 1,  y: 1,  tile: Base ),
+        ( x: 48, y: 48, tile: Base ),
+    ],
+    agents: [
+        ( x: 25, y: 25, kind: Random ),
+    ],
+)
