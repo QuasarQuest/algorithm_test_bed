@@ -1,45 +1,59 @@
 // src/sim/plugin.rs
 
 use bevy::prelude::*;
-use super::config::SimConfig;
+use super::config::{SimConfig, AVAILABLE_SPEEDS};
 use super::schedule::OnSimTick;
 use super::timer::TickTimer;
-use crate::config;
 
 fn fire_sim_tick(world: &mut World) {
-    // Extract delta first — drops the immutable borrow before we touch timer
     let delta = world.resource::<Time>().delta();
 
-    let should_tick = {
-        let cfg = world.resource::<SimConfig>();
-        if cfg.paused {
-            false
+    let ticks_to_run = {
+        let paused = world.resource::<SimConfig>().paused;
+        if paused {
+            0
         } else {
-            world.resource_mut::<TickTimer>().0.tick(delta).just_finished()
+            let mut timer = world.resource_mut::<TickTimer>();
+            timer.0.tick(delta);
+            timer.0.times_finished_this_tick()
         }
     };
 
-    if should_tick {
+    // Cap the maximum ticks per frame to prevent the game from freezing
+    // if the simulation gets too heavy to process in real-time.
+    let safe_ticks = ticks_to_run.min(100);
+
+    for _ in 0..safe_ticks {
         world.run_schedule(OnSimTick);
     }
 }
 
 fn handle_input(
-    keys:      Res<ButtonInput<KeyCode>>,
-    mut cfg:   ResMut<SimConfig>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut cfg: ResMut<SimConfig>,
     mut timer: ResMut<TickTimer>,
 ) {
     if keys.just_pressed(KeyCode::Space) {
         cfg.paused = !cfg.paused;
     }
+
     if keys.just_pressed(KeyCode::KeyF) {
-        cfg.ticks_per_second =
-            (cfg.ticks_per_second + config::SPEED_STEP).min(config::MAX_TICKS_PER_SECOND);
+        let current_idx = AVAILABLE_SPEEDS.iter()
+            .position(|&s| (s - cfg.ticks_per_second).abs() < f32::EPSILON)
+            .unwrap_or(0);
+        let next_idx = (current_idx + 1).min(AVAILABLE_SPEEDS.len() - 1);
+
+        cfg.ticks_per_second = AVAILABLE_SPEEDS[next_idx];
         timer.0 = Timer::from_seconds(1.0 / cfg.ticks_per_second, TimerMode::Repeating);
     }
+
     if keys.just_pressed(KeyCode::KeyS) {
-        cfg.ticks_per_second =
-            (cfg.ticks_per_second - config::SPEED_STEP).max(config::MIN_TICKS_PER_SECOND);
+        let current_idx = AVAILABLE_SPEEDS.iter()
+            .position(|&s| (s - cfg.ticks_per_second).abs() < f32::EPSILON)
+            .unwrap_or(0);
+        let next_idx = current_idx.saturating_sub(1);
+
+        cfg.ticks_per_second = AVAILABLE_SPEEDS[next_idx];
         timer.0 = Timer::from_seconds(1.0 / cfg.ticks_per_second, TimerMode::Repeating);
     }
 }

@@ -1,5 +1,6 @@
 // src/world/map_config.rs
 
+use bevy::prelude::*;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -30,7 +31,7 @@ pub struct AgentSpawn {
     pub kind: AgentKind,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Resource)]  // ← Resource added here
 pub struct MapConfig {
     pub width:            usize,
     pub height:           usize,

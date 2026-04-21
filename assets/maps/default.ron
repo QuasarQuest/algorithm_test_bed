@@ -8,6 +8,6 @@
         ( x: 48, y: 48, tile: Base ),
     ],
     agents: [
-        ( x: 25, y: 25, kind: Random ),
+        ( x: 0, y: 0, kind: Random ),
     ],
 )
