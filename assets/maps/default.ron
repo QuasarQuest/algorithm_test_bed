@@ -1,13 +1,23 @@
 (
-    width:            50,
-    height:           50,
-    random_obstacles: 80,
-    random_gold:      20,
+    width:  50,
+    height: 50,
+
+    random_gold: 20,
+
     fixed: [
         ( x: 1,  y: 1,  tile: Base ),
         ( x: 48, y: 48, tile: Base ),
     ],
+
     agents: [
-        ( x: 0, y: 0, kind: Random ),
+        ( x: 5, y: 5, kind: AStar ),
+    ],
+
+    obstacle_clusters: [
+        ( kind: Block,   count: 4,  size: (4, 4) ),
+        ( kind: Block,   count: 6,  size: (2, 3) ),
+        ( kind: Wall,    count: 8,  size: (5, 1) ),
+        ( kind: Wall,    count: 6,  size: (3, 1) ),
+        ( kind: Scatter, count: 30, size: (1, 1) ),
     ],
 )

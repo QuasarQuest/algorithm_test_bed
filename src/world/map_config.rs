@@ -31,14 +31,37 @@ pub struct AgentSpawn {
     pub kind: AgentKind,
 }
 
-#[derive(Debug, Deserialize, Clone, Resource)]  // ← Resource added here
+// ── Obstacle clusters ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum ObstacleKind {
+    /// Solid filled rectangle
+    Block,
+    /// Single-cell-thick line, horizontal or vertical (chosen randomly)
+    Wall,
+    /// Individual scattered cells
+    Scatter,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ObstacleCluster {
+    pub kind:  ObstacleKind,
+    /// How many clusters/walls/dots to place
+    pub count: usize,
+    /// Bounding box — Block uses both, Wall uses width as length, Scatter ignores
+    pub size:  (usize, usize),
+}
+
+// ── Root config ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Clone, Resource)]
 pub struct MapConfig {
-    pub width:            usize,
-    pub height:           usize,
-    pub random_obstacles: usize,
-    pub random_gold:      usize,
-    pub fixed:            Vec<FixedTile>,
-    pub agents:           Vec<AgentSpawn>,
+    pub width:              usize,
+    pub height:             usize,
+    pub random_gold:        usize,
+    pub fixed:              Vec<FixedTile>,
+    pub agents:             Vec<AgentSpawn>,
+    pub obstacle_clusters:  Vec<ObstacleCluster>,
 }
 
 impl MapConfig {

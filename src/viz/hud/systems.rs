@@ -4,22 +4,30 @@ use bevy::prelude::*;
 use crate::sim::config::{SimConfig, AVAILABLE_SPEEDS};
 use crate::sim::timer::TickTimer;
 use super::components::*;
-use super::layout::{BTN_HOVER, BTN_IDLE, BTN_PAUSED};
+use super::layout::{
+    BTN_HOVER, BTN_IDLE, BTN_PAUSED, BTN_RUNNING,
+    TEXT_PAUSED, TEXT_RUNNING,
+};
 
 pub fn count_ticks(mut count: ResMut<TickCount>) {
     count.0 += 1;
 }
 
 pub fn handle_pause_button(
-    query: Query<&Interaction, (Changed<Interaction>, With<PauseButtonMarker>)>,
-    mut text_query: Query<&mut Text, With<PauseLabelMarker>>,
-    mut cfg: ResMut<SimConfig>,
+    query:        Query<&Interaction, (Changed<Interaction>, With<PauseButtonMarker>)>,
+    mut bg:       Single<&mut BackgroundColor, With<PauseButtonMarker>>,
+    mut label_q:  Query<(&mut Text, &mut TextColor), With<PauseLabelMarker>>,
+    mut cfg:      ResMut<SimConfig>,
 ) {
     for interaction in query.iter() {
         if *interaction == Interaction::Pressed {
             cfg.paused = !cfg.paused;
-            for mut text in text_query.iter_mut() {
-                *text = Text::new(if cfg.paused { "Paused" } else { "Running" });
+
+            bg.0 = if cfg.paused { BTN_PAUSED } else { BTN_RUNNING };
+
+            for (mut text, mut color) in label_q.iter_mut() {
+                *text  = Text::new(if cfg.paused { "⏸  Paused" } else { "▶  Running" });
+                color.0 = if cfg.paused { TEXT_PAUSED } else { TEXT_RUNNING };
             }
         }
     }
@@ -29,39 +37,34 @@ pub fn handle_speed_buttons(
     dec_q: Query<&Interaction, (Changed<Interaction>, With<SpeedDecreaseButton>)>,
     inc_q: Query<&Interaction, (Changed<Interaction>, With<SpeedIncreaseButton>)>,
     rst_q: Query<&Interaction, (Changed<Interaction>, With<SpeedResetButton>)>,
-    mut cfg: ResMut<SimConfig>,
+    mut cfg:   ResMut<SimConfig>,
     mut timer: ResMut<TickTimer>,
 ) {
     let mut changed = false;
 
-    // Handle Minus Button
     for interaction in dec_q.iter() {
         if *interaction == Interaction::Pressed {
-            let current_idx = AVAILABLE_SPEEDS.iter()
+            let idx = AVAILABLE_SPEEDS.iter()
                 .position(|&s| (s - cfg.ticks_per_second).abs() < f32::EPSILON)
                 .unwrap_or(0);
-            let next_idx = current_idx.saturating_sub(1);
-            cfg.ticks_per_second = AVAILABLE_SPEEDS[next_idx];
+            cfg.ticks_per_second = AVAILABLE_SPEEDS[idx.saturating_sub(1)];
             changed = true;
         }
     }
 
-    // Handle Plus Button
     for interaction in inc_q.iter() {
         if *interaction == Interaction::Pressed {
-            let current_idx = AVAILABLE_SPEEDS.iter()
+            let idx = AVAILABLE_SPEEDS.iter()
                 .position(|&s| (s - cfg.ticks_per_second).abs() < f32::EPSILON)
                 .unwrap_or(0);
-            let next_idx = (current_idx + 1).min(AVAILABLE_SPEEDS.len() - 1);
-            cfg.ticks_per_second = AVAILABLE_SPEEDS[next_idx];
+            cfg.ticks_per_second = AVAILABLE_SPEEDS[(idx + 1).min(AVAILABLE_SPEEDS.len() - 1)];
             changed = true;
         }
     }
 
-    // Handle Reset Button
     for interaction in rst_q.iter() {
         if *interaction == Interaction::Pressed {
-            cfg.ticks_per_second = 10.0; // The defined normal speed
+            cfg.ticks_per_second = 10.0;
             changed = true;
         }
     }
@@ -71,9 +74,9 @@ pub fn handle_speed_buttons(
     }
 }
 
-// Keeps the center label perfectly in sync whether you click UI buttons or use keyboard F/S
+// Keeps speed label in sync whether clicked via UI or keyboard shortcuts
 pub fn update_speed_label(
-    cfg: Res<SimConfig>,
+    cfg:       Res<SimConfig>,
     mut query: Query<&mut Text, With<CurrentSpeedLabel>>,
 ) {
     if !cfg.is_changed() { return; }
@@ -91,25 +94,24 @@ pub fn update_button_styles(
     cfg: Res<SimConfig>,
 ) {
     for (interaction, mut color, pause_btn) in query.iter_mut() {
-        if pause_btn.is_some() {
-            *color = match (*interaction, cfg.paused) {
-                (_, true) => BTN_PAUSED.into(),
-                (Interaction::Hovered, false) => BTN_HOVER.into(),
-                (Interaction::None, false) => BTN_IDLE.into(),
-                (Interaction::Pressed, false) => BTN_HOVER.into(),
-            };
+        color.0 = if pause_btn.is_some() {
+            match (*interaction, cfg.paused) {
+                (_, true)                     => BTN_PAUSED,
+                (Interaction::Hovered, false) => BTN_HOVER,
+                (Interaction::Pressed, false) => BTN_HOVER,
+                (Interaction::None, false)    => BTN_RUNNING, // stays green when idle
+            }
         } else {
-            // All standard buttons (+, -, Reset) simply highlight on hover
-            *color = match *interaction {
-                Interaction::Hovered | Interaction::Pressed => BTN_HOVER.into(),
-                Interaction::None => BTN_IDLE.into(),
-            };
-        }
+            match *interaction {
+                Interaction::Hovered | Interaction::Pressed => BTN_HOVER,
+                Interaction::None                           => BTN_IDLE,
+            }
+        };
     }
 }
 
 pub fn update_tick_label(
-    count: Res<TickCount>,
+    count:     Res<TickCount>,
     mut query: Query<&mut Text, With<TickLabelMarker>>,
 ) {
     if !count.is_changed() { return; }

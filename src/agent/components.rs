@@ -1,13 +1,9 @@
 // src/agent/components.rs
-//
-// ECS Components — pure data, no logic.
-// These are the facts Bevy stores per agent entity.
-// Systems in systems.rs read and write these.
 
 use bevy::prelude::*;
 use crate::config;
 
-// ── Position on the grid ──────────────────────────────────────────────────────
+// ── Position ──────────────────────────────────────────────────────────────────
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct GridPos {
@@ -20,13 +16,26 @@ impl GridPos {
         Self { x, y }
     }
 
-    pub fn apply_delta(self, dx: i32, dy: i32) -> Self {
-        Self {
-            x: self.x + dx,
-            y: self.y + dy,
-        }
+    // THIS is the method the compiler is looking for!
+    pub fn apply_delta(&self, dx: i32, dy: i32) -> Self {
+        Self::new(self.x + dx, self.y + dy)
     }
 }
+
+// ── Gold ──────────────────────────────────────────────────────────────────────
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct GoldCarried(pub u32);
+
+impl GoldCarried {
+    pub fn is_full(self)  -> bool { self.0 >= config::AGENT_MAX_GOLD }
+    pub fn is_empty(self) -> bool { self.0 == 0 }
+}
+
+// ── Score ─────────────────────────────────────────────────────────────────────
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct Score(pub u32);
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -39,27 +48,7 @@ impl Default for Health {
     }
 }
 
-// ── Gold carried ──────────────────────────────────────────────────────────────
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct GoldCarried(pub u32);
-
-impl GoldCarried {
-    pub fn is_full(self) -> bool {
-        self.0 >= config::AGENT_MAX_GOLD
-    }
-
-    pub fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-}
-
-// ── Score — gold successfully delivered to Base ───────────────────────────────
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct Score(pub u32);
-
-// ── Agent label — human-readable name for UI and debug ───────────────────────
+// ── Label ─────────────────────────────────────────────────────────────────────
 
 #[derive(Component, Clone, Debug)]
 pub struct AgentLabel(pub String);
@@ -69,12 +58,3 @@ impl AgentLabel {
         Self(name.into())
     }
 }
-
-// ── Marker components — tag which kind of agent this entity is ───────────────
-// These allow targeted queries: Query<&GridPos, With<RandomAgentMarker>>
-
-#[derive(Component, Default)]
-pub struct RandomAgentMarker;
-
-#[derive(Component, Default)]
-pub struct AStarAgentMarker;
