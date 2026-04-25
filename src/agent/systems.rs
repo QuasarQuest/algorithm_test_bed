@@ -1,8 +1,8 @@
 // src/agent/systems.rs
 
 use bevy::prelude::*;
+use std::collections::HashMap;
 use crate::world::{Grid, tile::Tile};
-// Notice we no longer need Time, TickTimer, or SimConfig here!
 use super::action::Action;
 use super::brain::Brain;
 use super::components::{GridPos, GoldCarried, Health, Score};
@@ -67,13 +67,26 @@ pub fn tick_agents(
 pub fn apply_actions(
     mut grid: ResMut<Grid>,
     mut query: Query<(
+        Entity,
         &mut GridPos,
         &mut GoldCarried,
         &mut Score,
         &mut PendingAction,
     )>,
 ) {
-    for (mut pos, mut gold, mut score, mut pending) in query.iter_mut() {
+    // Phase 1: Gather Intentions
+    let mut move_requests: HashMap<GridPos, Vec<Entity>> = HashMap::new();
+
+    for (entity, pos, _, _, pending) in query.iter() {
+        if let Some(Action::Move(dir)) = &pending.0 {
+            let (dx, dy) = dir.delta();
+            let next_pos = pos.apply_delta(dx, dy);
+            move_requests.entry(next_pos).or_default().push(entity);
+        }
+    }
+
+    // Phase 2: Resolve & Execute
+    for (_, mut pos, mut gold, mut score, mut pending) in query.iter_mut() {
         let Some(action) = pending.0.take() else { continue };
 
         match action {
@@ -82,7 +95,12 @@ pub fn apply_actions(
                 let next = pos.apply_delta(dx, dy);
 
                 if grid.is_walkable(next.x, next.y) {
-                    *pos = next;
+                    // Only permit the move if exactly ONE agent wants this cell
+                    if let Some(contenders) = move_requests.get(&next) {
+                        if contenders.len() == 1 {
+                            *pos = next;
+                        }
+                    }
                 }
             }
             Action::Pickup => {
