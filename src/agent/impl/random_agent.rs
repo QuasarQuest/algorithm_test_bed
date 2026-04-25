@@ -12,9 +12,9 @@ impl Agent for RandomAgent {
         "Random Walker"
     }
 
-    fn act(&mut self, obs: &Observation) -> Action {
-        let on_gold = obs.visible_cells.iter().any(|c| c.pos == obs.pos && c.tile == Tile::Gold);
-        let on_base = obs.visible_cells.iter().any(|c| c.pos == obs.pos && c.tile == Tile::Base);
+    fn act(&mut self, obs: &Observation<'_>) -> Action {
+        let on_gold = obs.is_tile(obs.pos, Tile::Gold);
+        let on_base = obs.is_tile(obs.pos, Tile::Base);
 
         if on_gold && !obs.gold_carried.is_full() {
             return Action::Pickup;

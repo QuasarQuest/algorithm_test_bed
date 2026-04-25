@@ -16,17 +16,9 @@ pub trait Agent: Send + Sync {
     /// Human-readable name shown in UI and debug overlays.
     fn name(&self) -> &str;
 
-    /// Given what the agent observes, return one action for this tick.
-    /// Called exactly once per tick per agent.
-    fn act(&mut self, obs: &Observation) -> Action;
-
-    /// Optional: expose internal algorithm state for debug overlays.
-    /// Default: no debug info (most agents won't implement this).
-    fn debug_info(&self) -> Option<DebugInfo> {
-        None
-    }
-
-    /// Optional: reset internal state (e.g. clear path buffer on new episode).
+    // Add the <'_> lifetime here
+    fn act(&mut self, obs: &Observation<'_>) -> Action;
+    fn debug_info(&self) -> Option<DebugInfo> { None }
     fn reset(&mut self) {}
 }
 
@@ -71,10 +63,9 @@ impl Brain {
         Self(Box::new(agent))
     }
 
-    pub fn act(&mut self, obs: &Observation) -> Action {
+    pub fn act(&mut self, obs: &Observation<'_>) -> Action {
         self.0.act(obs)
     }
-
     pub fn name(&self) -> &str {
         self.0.name()
     }

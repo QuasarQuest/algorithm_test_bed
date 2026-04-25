@@ -8,10 +8,7 @@ use crate::world::tile::Tile;
 use crate::algorithm::path_planning::a_star::compute_path;
 
 pub struct AStarAgent {
-    /// The currently planned sequence of steps to the target.
-    path: Vec<GridPos>,
-
-    // Stored for the viz overlay
+    path:         Vec<GridPos>,
     debug_open:   Vec<GridPos>,
     debug_closed: Vec<GridPos>,
 }
@@ -25,7 +22,6 @@ impl AStarAgent {
         }
     }
 
-    /// Determines the direction from one adjacent cell to another.
     fn direction_to(&self, from: GridPos, to: GridPos) -> Option<Dir> {
         let dx = to.x - from.x;
         let dy = to.y - from.y;
@@ -38,10 +34,18 @@ impl Agent for AStarAgent {
         "A* Search"
     }
 
-    fn act(&mut self, obs: &Observation) -> Action {
-        // 1. Immediate interactions
-        let on_gold = obs.visible_cells.iter().any(|c| c.pos == obs.pos && c.tile == Tile::Gold);
-        let on_base = obs.visible_cells.iter().any(|c| c.pos == obs.pos && c.tile == Tile::Base);
+    fn act(&mut self, obs: &Observation<'_>) -> Action {
+        // ── Step 0: Closed-Loop Confirmation ──────────────────────────────────
+        // If our physical position matches the next planned step, the move succeeded!
+        if let Some(&next_step) = self.path.first() {
+            if obs.pos == next_step {
+                self.path.remove(0);
+            }
+        }
+
+        // ── Step 1: Immediate interactions ────────────────────────────────────
+        let on_gold = obs.is_tile(obs.pos, Tile::Gold);
+        let on_base = obs.is_tile(obs.pos, Tile::Base);
 
         if on_gold && !obs.gold_carried.is_full() {
             self.path.clear();
@@ -53,24 +57,36 @@ impl Agent for AStarAgent {
             return Action::Drop;
         }
 
-        // 2. Validate current path
+        // ── Step 2: Validate current path ─────────────────────────────────────
         if let Some(&next_step) = self.path.first() {
-            if !obs.is_walkable(next_step) && next_step != obs.nearest(Tile::Gold).unwrap_or(obs.pos) {
+            // If another agent walked into our path, abandon it and replan immediately.
+            if !obs.is_walkable(next_step) {
                 self.path.clear();
             }
         }
 
-        // 3. Generate new path if we don't have one
+        // ── Step 3: Generate new path if we don't have one ────────────────────
         if self.path.is_empty() {
-            let target = if !obs.gold_carried.is_full() {
-                obs.nearest(Tile::Gold)
-            } else {
-                obs.nearest(Tile::Base)
-            };
+            let mut target = None;
+
+            if !obs.gold_carried.is_full() {
+                target = obs.nearest(Tile::Gold);
+            }
+
+            if target.is_none() && !obs.gold_carried.is_empty() {
+                target = obs.nearest(Tile::Base);
+            }
 
             if let Some(goal) = target {
-                // Call the pure algorithm module, passing a closure for visibility
-                let result = compute_path(obs.pos, goal, |pos| obs.is_walkable(pos));
+                let result = compute_path(obs.pos, goal, |pos| {
+                    if !obs.is_walkable(pos) && pos != goal {
+                        return false;
+                    }
+                    if obs.is_tile(pos, Tile::Base) && pos != goal {
+                        return false;
+                    }
+                    true
+                });
 
                 self.path         = result.path;
                 self.debug_closed = result.closed_set.into_iter().collect();
@@ -78,9 +94,8 @@ impl Agent for AStarAgent {
             }
         }
 
-        // 4. Execute the next step in the path
-        if !self.path.is_empty() {
-            let next_pos = self.path.remove(0);
+        // ── Step 4: Execute next step ─────────────────────────────────────────
+        if let Some(&next_pos) = self.path.first() {
             if let Some(dir) = self.direction_to(obs.pos, next_pos) {
                 return Action::Move(dir);
             }
