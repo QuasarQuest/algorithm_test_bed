@@ -1,26 +1,11 @@
 // src/agent/components.rs
+// Pure ECS data components — no logic, no Bevy systems.
+// GridPos lives in world/coords.rs — re-exported here for convenience.
 
 use bevy::prelude::*;
 use crate::config;
 
-// ── Position ──────────────────────────────────────────────────────────────────
-
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct GridPos {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl GridPos {
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-
-    // THIS is the method the compiler is looking for!
-    pub fn apply_delta(&self, dx: i32, dy: i32) -> Self {
-        Self::new(self.x + dx, self.y + dy)
-    }
-}
+pub use crate::world::coords::GridPos;
 
 // ── Gold ──────────────────────────────────────────────────────────────────────
 
@@ -48,7 +33,7 @@ impl Default for Health {
     }
 }
 
-// ── Label ─────────────────────────────────────────────────────────────────────
+// ── Label — human-readable agent name ────────────────────────────────────────
 
 #[derive(Component, Clone, Debug)]
 pub struct AgentLabel(pub String);

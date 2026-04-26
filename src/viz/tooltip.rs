@@ -1,8 +1,10 @@
 // src/viz/tooltip.rs
 
 use bevy::prelude::*;
-use crate::agent::components::{AgentLabel, GoldCarried, GridPos, Score};
+use crate::world::coords::GridPos;
+use crate::agent::components::{AgentLabel, GoldCarried, Score};
 use super::grid_offset::GridOffset;
+use super::camera::MainCamera;
 
 #[derive(Component)] pub struct TooltipPanel;
 #[derive(Component)] pub struct TooltipName;
@@ -70,6 +72,7 @@ pub fn update_tooltip(
     windows:     Query<&Window>,
     agents:      Query<(&AgentLabel, &GoldCarried, &Score, &GridPos, &Transform)>,
     offset:      Res<GridOffset>,
+    cam_q:       Query<(&Transform, &Projection), With<MainCamera>>,
     mut panel_q: Query<(&mut Node, &mut Visibility), With<TooltipPanel>>,
     mut name_q:  Query<&mut Text, (With<TooltipName>,  Without<TooltipCarry>, Without<TooltipScore>, Without<TooltipPos>)>,
     mut carry_q: Query<&mut Text, (With<TooltipCarry>, Without<TooltipName>,  Without<TooltipScore>, Without<TooltipPos>)>,
@@ -79,28 +82,43 @@ pub fn update_tooltip(
     let Ok(window)              = windows.single()     else { return };
     let Ok((mut node, mut vis)) = panel_q.single_mut() else { return };
 
-    let Some(cursor) = window.cursor_position() else {
+    let Some(cursor_screen) = window.cursor_position() else {
         hide(&mut node, &mut vis);
         return;
     };
 
-    let win_w   = window.width();
-    let win_h   = window.height();
+    // Convert screen cursor → world space accounting for camera pan and zoom
+    let cursor_world = {
+        let Ok((cam_tf, projection)) = cam_q.single() else {
+            hide(&mut node, &mut vis);
+            return;
+        };
+        let Projection::Orthographic(ref ortho) = *projection else {
+            hide(&mut node, &mut vis);
+            return;
+        };
+        let win      = Vec2::new(window.width(), window.height());
+        let ndc      = (cursor_screen / win - 0.5) * 2.0;
+        let scale    = ortho.scale;
+        cam_tf.translation.truncate()
+            + Vec2::new(ndc.x * win.x / 2.0 * scale,
+                        -ndc.y * win.y / 2.0 * scale)
+    };
+
     let hover_r = offset.step * 0.6;
 
     let hovered = agents.iter().find(|(_, _, _, _, t)| {
-        let sx = t.translation.x + win_w / 2.0;
-        let sy = -t.translation.y + win_h / 2.0;
-        let dx = cursor.x - sx;
-        let dy = cursor.y - sy;
-        (dx * dx + dy * dy).sqrt() < hover_r
+        // Agent world position is stored directly in Transform
+        let agent_world = t.translation.truncate();
+        cursor_world.distance(agent_world) < hover_r
     });
 
     if let Some((label, gold, score, pos, _)) = hovered {
         node.display = Display::Flex;
         *vis         = Visibility::Visible;
-        node.left    = Val::Px((cursor.x + 14.0).min(win_w - 200.0));
-        node.top     = Val::Px((cursor.y - 10.0).max(0.0));
+        // Tooltip position stays in screen space (UI coordinates)
+        node.left    = Val::Px((cursor_screen.x + 14.0).min(window.width()  - 200.0));
+        node.top     = Val::Px((cursor_screen.y - 10.0).max(0.0));
 
         if let Ok(mut t) = name_q.single_mut()  { *t = Text::new(&label.0); }
         if let Ok(mut t) = carry_q.single_mut() { *t = Text::new(gold.0.to_string()); }

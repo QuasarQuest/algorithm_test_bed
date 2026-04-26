@@ -11,10 +11,6 @@ pub struct TileMarker {
     pub y: usize,
 }
 
-pub fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2d::default());
-}
-
 pub fn spawn_tiles(
     mut commands: Commands,
     grid:         Res<Grid>,

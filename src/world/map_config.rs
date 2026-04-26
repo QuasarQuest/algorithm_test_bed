@@ -22,6 +22,7 @@ pub struct FixedTile {
 pub enum AgentKind {
     Random,
     AStar,
+    DStarLite,
 }
 
 #[derive(Debug, Deserialize, Clone)]

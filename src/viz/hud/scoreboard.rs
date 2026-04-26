@@ -6,26 +6,29 @@
 
 use bevy::prelude::*;
 use crate::agent::components::{AgentLabel, GoldCarried, Score};
+use crate::viz::core_ui::*; // Import the Lego bricks and theme!
 
 // ── Markers ───────────────────────────────────────────────────────────────────
 
 #[derive(Component)] pub struct ScoreboardPanel;
 #[derive(Component)] pub struct ScoreboardContent;
 
-// ── Colours ───────────────────────────────────────────────────────────────────
+// ── Local Theme ───────────────────────────────────────────────────────────────
 
-const PANEL_BG:     Color = Color::srgba(0.06, 0.07, 0.10, 0.96);
-const ROW_ODD:      Color = Color::srgba(1.0, 1.0, 1.0, 0.03);
-const ACCENT_GOLD:  Color = Color::srgb(0.95, 0.78, 0.20);
-const ACCENT_GREEN: Color = Color::srgb(0.40, 0.90, 0.55);
-const TEXT_HEAD:    Color = Color::srgb(0.55, 0.55, 0.62);
-const TEXT_BODY:    Color = Color::srgb(0.92, 0.92, 0.95);
-const BORDER_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.07);
+const ROW_ODD:     Color = Color::srgba(1.0, 1.0, 1.0, 0.03);
+const ACCENT_GOLD: Color = Color::srgb(0.95, 0.78, 0.20); // Unique to scoreboard
 
-// ── Spawn ─────────────────────────────────────────────────────────────────────
+// ── The React Builder ─────────────────────────────────────────────────────────
 
-pub fn spawn_scoreboard(mut commands: Commands) {
+// 1. The Bevy System (Runs at Startup)
+pub fn spawn_scoreboard(mut commands: Commands, theme: Res<ThemeMode>) {
+    build_scoreboard(&mut commands, *theme);
+}
+
+// 2. The Logic (Can be called anytime to rebuild the shell)
+pub fn build_scoreboard(commands: &mut Commands, mode: ThemeMode) {
     commands.spawn((
+        UiRoot, // <-- The React Marker so this gets destroyed on theme change!
         ScoreboardPanel,
         Node {
             position_type:  PositionType::Absolute,
@@ -38,8 +41,8 @@ pub fn spawn_scoreboard(mut commands: Commands) {
             padding:        UiRect::all(Val::Px(1.0)),
             ..default()
         },
-        BackgroundColor(PANEL_BG),
-        BorderColor::all(BORDER_COLOR),
+        BackgroundColor(ThemeColor::Background.resolve(mode)), // <-- Dynamic!
+        BorderColor::all(ThemeColor::Border.resolve(mode)),    // <-- Dynamic!
     )).with_children(|panel| {
         // Header
         panel.spawn(Node {
@@ -48,12 +51,12 @@ pub fn spawn_scoreboard(mut commands: Commands) {
             column_gap:      Val::Px(8.0),
             ..default()
         }).with_children(|h| {
-            cell(h, "AGENT",       120.0, TEXT_HEAD,   10.0);
-            cell(h, "Gold",        32.0, ACCENT_GOLD, 11.0);
-            cell(h, "SCORE",       60.0, TEXT_HEAD,   10.0);
+            cell(h, "AGENT", 120.0, ThemeColor::TextDim.resolve(mode), SIZE_SM);
+            cell(h, "Gold",   32.0, ACCENT_GOLD, SIZE_SM);
+            cell(h, "SCORE",  60.0, ThemeColor::TextDim.resolve(mode), SIZE_SM);
         });
 
-        // Content — rebuilt each frame by update_scoreboard
+        // Content Shell — rebuilt each frame by update_scoreboard
         panel.spawn((
             ScoreboardContent,
             Node { flex_direction: FlexDirection::Column, ..default() },
@@ -66,10 +69,12 @@ pub fn spawn_scoreboard(mut commands: Commands) {
 pub fn update_scoreboard(
     agents:       Query<(&AgentLabel, &GoldCarried, &Score)>,
     content_q:    Query<Entity, With<ScoreboardContent>>,
+    theme:        Res<ThemeMode>, // <-- We inject the theme here too!
     mut commands: Commands,
 ) {
     let Ok(content) = content_q.single() else { return };
 
+    // Clear old rows
     commands.entity(content).despawn_related::<Children>();
 
     let mut rows: Vec<_> = agents.iter().collect();
@@ -88,9 +93,11 @@ pub fn update_scoreboard(
                 },
                 BackgroundColor(bg),
             )).with_children(|row| {
-                cell(row, &label.0,            120.0, TEXT_BODY,    12.0);
-                cell(row, &gold.0.to_string(),   32.0, ACCENT_GOLD,  12.0);
-                cell(row, &score.0.to_string(),  60.0, ACCENT_GREEN, 12.0);
+                // Resolve text colors using the current theme mode
+                cell(row, &label.0,            120.0, ThemeColor::TextPrimary.resolve(*theme), SIZE_MD);
+                cell(row, &gold.0.to_string(),   32.0, ACCENT_GOLD,  SIZE_MD);
+                // I'm assuming you want the score to be green like before (SuccessText)
+                cell(row, &score.0.to_string(),  60.0, ThemeColor::SuccessText.resolve(*theme), SIZE_MD);
             });
         }
     });
