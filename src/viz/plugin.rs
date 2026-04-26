@@ -9,12 +9,14 @@ use super::agent_renderer::{assign_agent_colours, sync_agent_transforms};
 use super::algorithm::{draw_astar_debug, draw_dstar_debug};
 use super::tooltip::{spawn_tooltip, update_tooltip};
 use crate::viz::core_ui::theme::ThemeMode;
+
 // Import Menu (Active)
-use super::menu::components::DebugVizConfig;
+use super::menu::components::{DebugVizConfig, MenuState}; // <-- Added MenuState
 use super::menu::{
     spawn_menu,
     handle_pause_button, handle_speed_buttons, handle_viz_toggle_button,
     update_button_styles, update_speed_label,
+    handle_theme_toggle_button, react_to_ui_changes, handle_hamburger_button // <-- Updated Systems
 };
 
 // Import HUD (Passive)
@@ -29,6 +31,7 @@ impl Plugin for VizPlugin {
         app
             .init_resource::<DebugVizConfig>()
             .init_resource::<ThemeMode>()
+            .init_resource::<MenuState>() // <-- Init MenuState
             .add_systems(PreStartup, init_pan_state)
             .add_systems(Startup, (
                 spawn_camera,
@@ -38,9 +41,9 @@ impl Plugin for VizPlugin {
             ).chain())
             // UI Generation Chain
             .add_systems(Startup, (
-                spawn_menu,       // Top-Left and Center buttons
-                spawn_hud,        // Top-Right tick counter
-                spawn_scoreboard, // Bottom-Right scoreboard
+                spawn_menu,
+                spawn_hud,
+                spawn_scoreboard,
                 spawn_tooltip,
             ).chain())
             .add_systems(Update, (
@@ -52,6 +55,9 @@ impl Plugin for VizPlugin {
                 draw_dstar_debug,
 
                 // Menu Systems
+                handle_hamburger_button,   // <-- Added
+                react_to_ui_changes,       // <-- Renamed
+                handle_theme_toggle_button,
                 handle_viz_toggle_button,
                 handle_pause_button,
                 handle_speed_buttons,

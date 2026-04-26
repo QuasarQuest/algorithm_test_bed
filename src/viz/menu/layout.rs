@@ -5,29 +5,33 @@ use crate::viz::core_ui::*;
 use super::components::*;
 
 // 1. The Bevy System (Runs at Startup)
-pub fn spawn_menu(mut commands: Commands, theme: Res<ThemeMode>) {
-    build_menu(&mut commands, *theme);
+pub fn spawn_menu(mut commands: Commands, theme: Res<ThemeMode>, menu: Res<MenuState>) {
+    build_menu(&mut commands, *theme, menu.is_open);
 }
-
 // 2. The Logic (Can be called anytime to rebuild the shell)
-pub fn build_menu(commands: &mut Commands, mode: ThemeMode) {
-    // Top-Left Panel
+
+pub fn build_menu(commands: &mut Commands, mode: ThemeMode, is_open: bool) {
+    // 1. Top-Left Panel (Just the Hamburger)
     spawn_floating_panel(commands, mode, Val::Px(12.0), Val::Auto, Val::Auto, Val::Px(12.0), |p| {
-        spawn_labeled_button(p, mode, "Viz: ON", ThemeColor::ButtonIdle, ThemeColor::SuccessText, VizToggleButton);
-        spawn_labeled_button(p, mode, "Theme", ThemeColor::ButtonIdle, ThemeColor::TextPrimary, ThemeToggleButton);
-        spawn_label(p, "Algorithm Test Bed", ThemeColor::TextDim.resolve(mode), SIZE_LG);
+        spawn_icon_button(p, mode, "≡", HamburgerButton);
     });
 
-    // Top-Center Panel
-    spawn_floating_panel(commands, mode, Val::Px(12.0), Val::Auto, Val::Auto, Val::Percent(40.0), |p| {
-        spawn_button_group(p, mode, |bg| {
-            spawn_icon_button(bg, mode, "-", SpeedDecreaseButton);
-            spawn_speed_label(bg, mode);
-            spawn_icon_button(bg, mode, "+", SpeedIncreaseButton);
+    // 2. Dropdown Panel (Only appears if is_open is true)
+    if is_open {
+        // Spawned just below the hamburger button
+        spawn_floating_panel(commands, mode, Val::Px(64.0), Val::Auto, Val::Auto, Val::Px(12.0), |p| {
+            // Wrap the buttons in a column layout
+            p.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(8.0),
+                ..default()
+            }).with_children(|col| {
+                spawn_labeled_button(col, mode, "▶  Running", ThemeColor::Success, ThemeColor::SuccessText, PauseButtonMarker);
+                spawn_labeled_button(col, mode, "👁  Viz: ON", ThemeColor::ButtonIdle, ThemeColor::SuccessText, VizToggleButton);
+                spawn_labeled_button(col, mode, "🌗 Theme", ThemeColor::ButtonIdle, ThemeColor::TextPrimary, ThemeToggleButton);
+            });
         });
-
-        spawn_labeled_button(p, mode, "Running", ThemeColor::Success, ThemeColor::SuccessText, PauseButtonMarker);
-    });
+    }
 }
 
 // Custom builder for the speed label

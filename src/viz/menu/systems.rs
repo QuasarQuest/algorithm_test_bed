@@ -6,7 +6,42 @@ use crate::sim::timer::TickTimer;
 use crate::viz::core_ui::theme::{ThemeMode, ThemeColor, UiRoot};
 use super::components::*;
 
-// ── Theme Toggle & React Rebuild ──────────────────────────────────────────────
+// ── Hamburger & Menu State ────────────────────────────────────────────────────
+
+pub fn handle_hamburger_button(
+    query: Query<&Interaction, (Changed<Interaction>, With<HamburgerButton>)>,
+    mut menu: ResMut<MenuState>,
+) {
+    for interaction in query.iter() {
+        if *interaction == Interaction::Pressed {
+            menu.is_open = !menu.is_open;
+        }
+    }
+}
+
+// Renamed from react_to_theme_change to react_to_ui_changes
+pub fn react_to_ui_changes(
+    mut commands: Commands,
+    theme: Res<ThemeMode>,
+    menu: Res<MenuState>,
+    ui_roots: Query<Entity, With<UiRoot>>,
+) {
+    let theme_changed = theme.is_changed() && !theme.is_added();
+    let menu_changed  = menu.is_changed() && !menu.is_added();
+
+    if theme_changed || menu_changed {
+        // Unmount old UI safely
+        for entity in ui_roots.iter() {
+            commands.entity(entity).despawn_related::<Children>();
+            commands.entity(entity).despawn();
+        }
+
+        // Remount new UI
+        crate::viz::hud::layout::build_hud(&mut commands, *theme);
+        crate::viz::menu::layout::build_menu(&mut commands, *theme, menu.is_open);
+        crate::viz::hud::scoreboard::build_scoreboard(&mut commands, *theme);
+    }
+}
 
 pub fn handle_theme_toggle_button(
     query: Query<&Interaction, (Changed<Interaction>, With<ThemeToggleButton>)>,
@@ -22,27 +57,6 @@ pub fn handle_theme_toggle_button(
     }
 }
 
-pub fn react_to_theme_change(
-    mut commands: Commands,
-    theme: Res<ThemeMode>,
-    ui_roots: Query<Entity, With<UiRoot>>,
-) {
-    if theme.is_changed() && !theme.is_added() {
-        // Unmount old UI safely
-        for entity in ui_roots.iter() {
-            commands.entity(entity).despawn_related::<Children>();
-            commands.entity(entity).despawn();
-        }
-
-        // Remount new UI
-        crate::viz::hud::layout::build_hud(&mut commands, *theme);
-        crate::viz::menu::layout::build_menu(&mut commands, *theme);
-        crate::viz::hud::scoreboard::build_scoreboard(&mut commands, *theme);
-    }
-}
-
-// ── Viz Toggle ────────────────────────────────────────────────────────────────
-
 pub fn handle_viz_toggle_button(
     mut query:  Query<&Interaction, (Changed<Interaction>, With<VizToggleButton>)>,
     mut config: ResMut<DebugVizConfig>,
@@ -53,8 +67,6 @@ pub fn handle_viz_toggle_button(
         }
     }
 }
-
-// ── Pause & Speed Controls ────────────────────────────────────────────────────
 
 pub fn handle_pause_button(
     query:   Query<&Interaction, (Changed<Interaction>, With<PauseButtonMarker>)>,
@@ -112,25 +124,25 @@ pub fn update_speed_label(
     }
 }
 
-// ── Hover & State Visuals ─────────────────────────────────────────────────────
-
 pub fn update_button_styles(
     mut query: Query<(
         &Interaction,
         &mut BackgroundColor,
         Option<&PauseButtonMarker>,
-        Option<&VizToggleButton>
+        Option<&VizToggleButton>,
+        Option<&HamburgerButton> // <-- Add Hamburger to the style check
     ), (Changed<Interaction>, With<Button>)>,
     cfg:        Res<SimConfig>,
     viz_config: Res<DebugVizConfig>,
     theme:      Res<ThemeMode>,
+    menu:       Res<MenuState>,      // <-- Read menu state
 ) {
     let idle    = ThemeColor::ButtonIdle.resolve(*theme);
     let hover   = ThemeColor::ButtonHover.resolve(*theme);
     let running = ThemeColor::Success.resolve(*theme);
     let paused  = ThemeColor::Error.resolve(*theme);
 
-    for (interaction, mut color, pause_btn, viz_btn) in query.iter_mut() {
+    for (interaction, mut color, pause_btn, viz_btn, ham_btn) in query.iter_mut() {
         if pause_btn.is_some() {
             color.0 = match (*interaction, cfg.paused) {
                 (_, true)                     => paused,
@@ -140,10 +152,17 @@ pub fn update_button_styles(
             };
         } else if viz_btn.is_some() {
             color.0 = match (*interaction, viz_config.show_global) {
-                (Interaction::Hovered, _) => hover,
-                (Interaction::Pressed, _) => hover,
-                (Interaction::None, true) => idle,
+                (Interaction::Hovered, _)  => hover,
+                (Interaction::Pressed, _)  => hover,
+                (Interaction::None, true)  => idle,
                 (Interaction::None, false) => paused,
+            };
+        } else if ham_btn.is_some() {
+            color.0 = match (*interaction, menu.is_open) {
+                (Interaction::Hovered, _)  => hover,
+                (Interaction::Pressed, _)  => hover,
+                (Interaction::None, true)  => hover, // Keep highlighted when open
+                (Interaction::None, false) => idle,
             };
         } else {
             color.0 = match *interaction {

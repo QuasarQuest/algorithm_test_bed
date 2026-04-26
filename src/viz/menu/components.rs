@@ -2,17 +2,15 @@
 
 use bevy::prelude::*;
 
-// ── Resources ─────────────────────────────────────────────────────────────────
-
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct DebugVizConfig {
     pub show_global: bool,
 }
 
-impl Default for DebugVizConfig {
-    fn default() -> Self {
-        Self { show_global: true }
-    }
+// ── NEW: Menu State ───────────────────────────────────────────────────────────
+#[derive(Resource, Default)]
+pub struct MenuState {
+    pub is_open: bool,
 }
 
 // ── Markers ───────────────────────────────────────────────────────────────────
@@ -27,3 +25,4 @@ impl Default for DebugVizConfig {
 
 #[derive(Component)] pub struct VizToggleButton;
 #[derive(Component)] pub struct ThemeToggleButton;
+#[derive(Component)] pub struct HamburgerButton;
