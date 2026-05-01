@@ -34,8 +34,8 @@ pub fn fit_camera_to_grid(
 ) {
     let Ok(window) = windows.single() else { return };
     let step      = config::TILE_SIZE + config::TILE_GAP;
-    let scale_x   = grid.width  as f32 * step / window.width()  * 1.05;
-    let scale_y   = grid.height as f32 * step / window.height() * 1.05;
+    let scale_x   = grid.width  as f32 * step / window.width()  * 1.10;
+    let scale_y   = grid.height as f32 * step / window.height() * 1.10;
 
     if let Projection::Orthographic(ref mut ortho) = **proj {
         ortho.scale = scale_x.max(scale_y).clamp(ZOOM_MIN, ZOOM_MAX);
