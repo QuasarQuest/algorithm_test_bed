@@ -6,7 +6,7 @@ use super::camera::{spawn_camera, fit_camera_to_grid, init_pan_state, camera_con
 use super::grid_offset::compute_grid_offset;
 use super::tile_renderer::{spawn_tiles, sync_tile_colors};
 use super::agent_renderer::{assign_agent_colours, sync_agent_transforms};
-use super::algorithm::{draw_astar_debug, draw_dstar_debug};
+use super::algorithm::draw_agent_debug; // <-- Universal draw system
 use super::tooltip::{spawn_tooltip, update_tooltip};
 use crate::viz::core_ui::theme::ThemeMode;
 
@@ -53,18 +53,20 @@ impl Plugin for VizPlugin {
                 sync_tile_colors,
                 sync_agent_transforms,
                 assign_agent_colours,
-                draw_astar_debug,
-                draw_dstar_debug,
+                draw_agent_debug,
+
                 // Drawer
                 handle_hamburger_button,
                 handle_drawer_overlay,
                 react_to_ui_changes,
+
                 // Controls
                 handle_theme_toggle_button,
                 handle_pause_button,
                 handle_speed_buttons,
                 update_button_styles,
                 update_speed_label,
+
                 // HUD
                 update_tick_label,
                 update_scoreboard,

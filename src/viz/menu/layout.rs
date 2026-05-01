@@ -43,12 +43,12 @@ pub fn build_toolbar(commands: &mut Commands, mode: ThemeMode) {
         ZIndex(100),
     )).with_children(|root| {
 
-        // Left: hamburger — plain ASCII "=" is universally safe
+        // Left: hamburger
         spawn_icon_button(root, mode, "=", HamburgerButton);
 
-        // Center: speed controls — use plain ASCII < > instead of unicode
+        // Center: speed controls
         spawn_button_group(root, mode, |bg| {
-            spawn_icon_button(bg, mode, "-", SpeedDecreaseButton);
+            spawn_icon_button(bg, mode, "<", SpeedDecreaseButton);
             bg.spawn((
                 Button,
                 SpeedResetButton,
@@ -69,7 +69,7 @@ pub fn build_toolbar(commands: &mut Commands, mode: ThemeMode) {
                     CurrentSpeedLabel,
                 ));
             });
-            spawn_icon_button(bg, mode, "+", SpeedIncreaseButton);
+            spawn_icon_button(bg, mode, ">", SpeedIncreaseButton);
         });
 
         // Right: pause + tick
@@ -110,7 +110,7 @@ pub fn build_drawer(commands: &mut Commands, mode: ThemeMode) {
     commands.spawn((
         UiRoot,
         DrawerOverlay,
-        Button,
+        Interaction::default(), // <--- CRITICAL FIX: No `Button` component, so it doesn't turn gray!
         Node {
             position_type: PositionType::Absolute,
             top:           Val::Px(TOOLBAR_H),
@@ -119,7 +119,7 @@ pub fn build_drawer(commands: &mut Commands, mode: ThemeMode) {
             height:        Val::Percent(100.0),
             ..default()
         },
-        BackgroundColor(Color::NONE),
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.4)), // <--- Dimming the background to emulate focus
         ZIndex(98),
     ));
 
@@ -139,7 +139,7 @@ pub fn build_drawer(commands: &mut Commands, mode: ThemeMode) {
             border:         UiRect::right(Val::Px(1.0)),
             ..default()
         },
-        BackgroundColor(bg),
+        BackgroundColor(bg.with_alpha(0.85)), // <--- SEMI-TRANSPARENT MENU
         BorderColor::all(border),
         ZIndex(99),
     )).with_children(|drawer| {
@@ -158,7 +158,7 @@ pub fn build_drawer(commands: &mut Commands, mode: ThemeMode) {
                 TextFont  { font_size: SIZE_LG, ..default() },
                 TextColor(text),
             ));
-            spawn_icon_button(header, mode, "X", HamburgerButton);
+            spawn_icon_button(header, mode, "X", HamburgerButton); // Clicking this or the overlay closes it
         });
 
         drawer_section(drawer, "Simulation", dim);

@@ -1,25 +1,24 @@
 // src/agent/impl/dstar_agent.rs
 
+use bevy::prelude::*;
 use crate::agent::action::{Action, Dir};
-use crate::agent::brain::{Agent, DebugInfo};
+use crate::agent::brain::Agent;
 use crate::agent::components::GridPos;
 use crate::agent::observation::Observation;
+use crate::agent::debug::DebugDraw;
 use crate::world::tile::Tile;
 use crate::algorithm::path_planning::d_star_lite::DStarLite;
+use crate::viz::grid_offset::GridOffset;
+use crate::config;
 
 pub struct DStarAgent {
     planner: Option<DStarLite>,
-    target:  Option<GridPos>,
-    last_pos: Option<GridPos>,
+    last_pos: Option<GridPos>, // We only need to remember our last position
 }
 
 impl DStarAgent {
     pub fn new() -> Self {
-        Self {
-            planner: None,
-            target:  None,
-            last_pos: None,
-        }
+        Self { planner: None, last_pos: None }
     }
 
     fn direction_to(&self, from: GridPos, to: GridPos) -> Option<Dir> {
@@ -35,42 +34,36 @@ impl Agent for DStarAgent {
     }
 
     fn act(&mut self, obs: &Observation<'_>) -> Action {
-        // ── Step 1: Immediate Interactions ────────────────────────────────────
         let on_gold = obs.is_tile(obs.pos, Tile::Gold);
         let on_base = obs.is_tile(obs.pos, Tile::Base);
 
         if on_gold && !obs.gold_carried.is_full() {
-            self.reset(); // We got the gold, clear the planner to find base next tick
+            self.reset();
             return Action::Pickup;
         }
 
         if on_base && !obs.gold_carried.is_empty() {
-            self.reset(); // Dropped gold, clear the planner to find gold next tick
+            self.reset();
             return Action::Drop;
         }
 
-        // ── Step 2: Initialize Planner if needed ──────────────────────────────
         if self.planner.is_none() {
-            let mut target = None;
-            if !obs.gold_carried.is_full() {
-                target = obs.nearest(Tile::Gold);
+            // FIX: Idiomatic conditional assignment (no unused 'None' state)
+            let target = if !obs.gold_carried.is_full() {
+                obs.nearest(Tile::Gold)
             } else {
-                target = obs.nearest(Tile::Base);
-            }
+                obs.nearest(Tile::Base)
+            };
 
             if let Some(goal) = target {
                 let mut planner = DStarLite::new(obs.pos, goal);
                 planner.compute_shortest_path();
-
                 self.planner  = Some(planner);
-                self.target   = Some(goal);
                 self.last_pos = Some(obs.pos);
             }
         }
 
-        // ── Step 3: Update Vision & Replan Dynamically ────────────────────────
         if let Some(planner) = &mut self.planner {
-            // If we successfully moved last tick, tell the planner to update its start key
             if let Some(last) = self.last_pos {
                 if last != obs.pos {
                     planner.update_start(obs.pos);
@@ -78,44 +71,35 @@ impl Agent for DStarAgent {
                 }
             }
 
-            // Look around us. Are there unexpected obstacles? (Walls or other agents)
             let mut changed = false;
             for dir in Dir::all() {
                 let (dx, dy) = dir.delta();
                 let check_pos = GridPos::new(obs.pos.x + dx, obs.pos.y + dy);
 
-                // NOTE: In this basic implementation, we treat moving agents as permanent
-                // walls. This creates "phantom walls", which is a great educational
-                // demonstration of D* Lite's static-world assumptions!
                 if !obs.is_walkable(check_pos) && !planner.known_obstacles.contains(&check_pos) {
                     planner.add_obstacle(check_pos);
                     changed = true;
                 }
             }
 
-            // Only recalculate if we discovered something new!
-            if changed {
-                planner.compute_shortest_path();
-            }
+            if changed { planner.compute_shortest_path(); }
 
-            // ── Step 4: Execute next step ─────────────────────────────────────
             if let Some(next_pos) = planner.get_next_step() {
                 if let Some(dir) = self.direction_to(obs.pos, next_pos) {
                     return Action::Move(dir);
                 }
             }
         }
-
         Action::Wait
     }
 
-    fn debug_info(&self) -> Option<DebugInfo> {
+    fn debug_draw(&self) -> Option<Box<dyn DebugDraw>> {
         if let Some(planner) = &self.planner {
-            Some(DebugInfo::DStarLite {
-                open:      planner.open_set().iter().map(|p| (p.x, p.y)).collect(),
-                obstacles: planner.known_obstacles.iter().map(|p| (p.x, p.y)).collect(),
-                path:      planner.generate_path().iter().map(|p| (p.x, p.y)).collect(),
-            })
+            Some(Box::new(DStarDebugState {
+                open:      planner.open_set().iter().copied().collect(),
+                obstacles: planner.known_obstacles.iter().copied().collect(),
+                path:      planner.generate_path(),
+            }))
         } else {
             None
         }
@@ -123,7 +107,39 @@ impl Agent for DStarAgent {
 
     fn reset(&mut self) {
         self.planner  = None;
-        self.target   = None;
         self.last_pos = None;
+    }
+}
+
+// ── The algorithm's private drawing logic ─────────────────────────────────────
+
+pub struct DStarDebugState {
+    open: Vec<GridPos>,
+    obstacles: Vec<GridPos>,
+    path: Vec<GridPos>,
+}
+
+impl DebugDraw for DStarDebugState {
+    fn draw(&self, pos: GridPos, gizmos: &mut Gizmos, offset: &GridOffset) {
+        let half = config::TILE_SIZE * 0.45;
+
+        for p in &self.obstacles {
+            let c = offset.world_pos(p.x, p.y);
+            gizmos.rect_2d(Isometry2d::from_translation(c), Vec2::splat(half), Color::srgba(1.0, 0.10, 0.10, 0.6));
+        }
+
+        for p in &self.open {
+            let c = offset.world_pos(p.x, p.y);
+            gizmos.rect_2d(Isometry2d::from_translation(c), Vec2::splat(half), Color::srgba(0.70, 0.20, 0.95, 0.15));
+        }
+
+        if !self.path.is_empty() {
+            let mut pts = Vec::with_capacity(self.path.len() + 1);
+            pts.push(offset.world_pos(pos.x, pos.y));
+            for p in &self.path {
+                pts.push(offset.world_pos(p.x, p.y));
+            }
+            gizmos.linestrip_2d(pts, Color::srgb(0.85, 0.30, 1.0));
+        }
     }
 }
