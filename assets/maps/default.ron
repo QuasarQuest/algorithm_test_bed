@@ -10,7 +10,7 @@
     ],
 
     agents: [
-        ( x: 5, y: 5, kind: DStarLite ),
+        ( x: 5, y: 5, kind: AStar ),
     ],
 
     obstacle_clusters: [
