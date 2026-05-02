@@ -1,3 +1,4 @@
+// assets/maps/default.ron
 (
     width:  50,
     height: 50,
@@ -10,7 +11,8 @@
     ],
 
     agents: [
-        ( x: 5, y: 5, kind: AStar ),
+        ( x: 5,  y: 5,  kind: AStar, team: Some(0) ),  // Red  — bottom-left
+        ( x: 45, y: 45, kind: AStar, team: Some(1) ),  // Blue — top-right
     ],
 
     obstacle_clusters: [

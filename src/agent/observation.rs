@@ -1,21 +1,29 @@
 // src/agent/observation.rs
-//
-// Observation is the filtered world-view passed to Agent::act().
-// Zero-copy — holds references into the grid and the agent occupancy set.
-// Fog of War would live here: filter visible_cells by radius around pos.
 
 use std::collections::HashSet;
 use crate::world::Grid;
 use crate::world::coords::GridPos;
 use crate::world::tile::Tile;
-use super::components::{AgentLabel, GoldCarried, Health, Score};
+use super::components::{GoldCarried, Health, Score};
+use super::team::Team;
 
 // ── A visible agent ───────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug)]
 pub struct VisibleAgent {
-    pub pos:   GridPos,
-    // Extend later: team, health, carrying, etc.
+    pub pos:          GridPos,
+    pub team:         Team,
+    pub health:       Health,
+    pub gold_carried: GoldCarried,
+}
+
+impl VisibleAgent {
+    pub fn is_enemy(&self, my_team: Team) -> bool {
+        self.team != my_team
+    }
+    pub fn is_ally(&self, my_team: Team) -> bool {
+        self.team == my_team
+    }
 }
 
 // ── Observation ───────────────────────────────────────────────────────────────
@@ -26,14 +34,13 @@ pub struct Observation<'a> {
     pub gold_carried: GoldCarried,
     pub health:       Health,
     pub score:        Score,
+    pub team:         Team,
     pub tick:         u64,
+    /// Scalar reward for this tick — populated by sim for RL agents, 0.0 otherwise.
+    pub reward:       f32,
 
-    // Zero-copy references — no Vec allocation per agent per tick
     grid:         &'a Grid,
     occupied:     &'a HashSet<GridPos>,
-
-    // Other agents visible to this agent
-    // Enables game theory, cooperation, avoidance strategies
     pub other_agents: &'a [VisibleAgent],
 }
 
@@ -43,43 +50,46 @@ impl<'a> Observation<'a> {
         gold_carried: GoldCarried,
         health:       Health,
         score:        Score,
+        team:         Team,
         grid:         &'a Grid,
         occupied:     &'a HashSet<GridPos>,
         other_agents: &'a [VisibleAgent],
         tick:         u64,
+        reward:       f32,
     ) -> Self {
-        Self { pos, gold_carried, health, score, grid, occupied, other_agents, tick }
+        Self { pos, gold_carried, health, score, team, grid, occupied, other_agents, tick, reward }
     }
 
-    /// Check if a specific position contains a specific tile.
     pub fn is_tile(&self, pos: GridPos, tile: Tile) -> bool {
         self.grid.get(pos.x, pos.y) == Some(tile)
     }
 
-    /// Find the nearest tile of a given type.
     pub fn nearest(&self, target_tile: Tile) -> Option<GridPos> {
         self.grid.iter()
             .filter(|(_, _, tile)| *tile == target_tile)
-            .min_by_key(|(x, y, _)| {
-                let p = GridPos::new(*x as i32, *y as i32);
-                p.dist_sq(self.pos)
-            })
+            .min_by_key(|(x, y, _)| GridPos::new(*x as i32, *y as i32).dist_sq(self.pos))
             .map(|(x, y, _)| GridPos::new(x as i32, y as i32))
     }
 
-    /// Walkable = not an obstacle AND no other agent standing there.
     pub fn is_walkable(&self, pos: GridPos) -> bool {
         self.grid.is_walkable(pos.x, pos.y)
             && (!self.occupied.contains(&pos) || pos == self.pos)
     }
 
-    /// All other agents this agent can see.
-    /// With Fog of War: filter by radius. Currently: full visibility.
-    pub fn visible_agents(&self) -> &[VisibleAgent] {
-        self.other_agents
+    pub fn visible_agents(&self) -> &[VisibleAgent] { self.other_agents }
+
+    pub fn nearest_enemy(&self) -> Option<&VisibleAgent> {
+        self.other_agents.iter()
+            .filter(|a| a.is_enemy(self.team))
+            .min_by_key(|a| a.pos.dist_sq(self.pos))
     }
 
-    /// Nearest visible agent (excluding self). Useful for pursuit, avoidance.
+    pub fn nearest_ally(&self) -> Option<&VisibleAgent> {
+        self.other_agents.iter()
+            .filter(|a| a.is_ally(self.team) && a.pos != self.pos)
+            .min_by_key(|a| a.pos.dist_sq(self.pos))
+    }
+
     pub fn nearest_agent(&self) -> Option<&VisibleAgent> {
         self.other_agents.iter()
             .filter(|a| a.pos != self.pos)

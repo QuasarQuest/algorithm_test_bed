@@ -4,12 +4,7 @@ use bevy::prelude::*;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum TileKind {
-    Free,
-    Obstacle,
-    Gold,
-    Base,
-}
+pub enum TileKind { Free, Obstacle, Gold, Base }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct FixedTile {
@@ -19,50 +14,36 @@ pub struct FixedTile {
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum AgentKind {
-    Random,
-    AStar,
-    DStarLite,
-}
+pub enum AgentKind { Random, AStar, DStarLite }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AgentSpawn {
     pub x:    i32,
     pub y:    i32,
     pub kind: AgentKind,
+    /// Optional team id — defaults to 0 (Red) if absent.
+    #[serde(default)]
+    pub team: Option<u8>,
 }
-
-// ── Obstacle clusters ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum ObstacleKind {
-    /// Solid filled rectangle
-    Block,
-    /// Single-cell-thick line, horizontal or vertical (chosen randomly)
-    Wall,
-    /// Individual scattered cells
-    Scatter,
-}
+pub enum ObstacleKind { Block, Wall, Scatter }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ObstacleCluster {
     pub kind:  ObstacleKind,
-    /// How many clusters/walls/dots to place
     pub count: usize,
-    /// Bounding box — Block uses both, Wall uses width as length, Scatter ignores
     pub size:  (usize, usize),
 }
 
-// ── Root config ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize, Clone, Resource)]
 pub struct MapConfig {
-    pub width:              usize,
-    pub height:             usize,
-    pub random_gold:        usize,
-    pub fixed:              Vec<FixedTile>,
-    pub agents:             Vec<AgentSpawn>,
-    pub obstacle_clusters:  Vec<ObstacleCluster>,
+    pub width:             usize,
+    pub height:            usize,
+    pub random_gold:       usize,
+    pub fixed:             Vec<FixedTile>,
+    pub agents:            Vec<AgentSpawn>,
+    pub obstacle_clusters: Vec<ObstacleCluster>,
 }
 
 impl MapConfig {
